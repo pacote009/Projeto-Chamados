@@ -1,0 +1,7 @@
+# Frontend
+OS-main/node_modules
+OS-main/dist
+
+# Backend
+OS-backend/node_modules
+OS-backend/.env
