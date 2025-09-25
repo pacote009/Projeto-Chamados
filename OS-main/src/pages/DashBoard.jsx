@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { ClipboardDocumentListIcon, CheckCircleIcon, ClockIcon } from "@heroicons/react/24/outline";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getDashboardData, getRelatorioConcluidasPorSemana } from "../services/api";
+import { getDashboardData, getRelatorioConcluidasPorSemana, getDashboard } from "../services/api";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid
 } from "recharts";
@@ -20,72 +20,75 @@ const Dashboard = () => {
     let isMounted = true;
 
     const fetchDashboard = async () => {
-      setLoading(true);
-      setErrorMsg("");
-      try {
-        // 1) Stats principais
-        const dashboardStats = await getDashboardData();
-        if (!isMounted) return;
+  setLoading(true);
+  setErrorMsg("");
+  try {
+    let dashboardStats;
 
-        // defensivo: se o backend retornar algo inesperado, usamos 0 como fallback
-        setStats({
-          concluidas: Number(dashboardStats?.concluidas) || 0,
-          pendentes: Number(dashboardStats?.pendentes) || 0,
-          projetos: Number(dashboardStats?.projetos) || 0,
+    // 1) Tenta puxar do backend (/dashboard)
+    try {
+      dashboardStats = await getDashboard();
+    } catch (backendError) {
+      console.warn("⚠️ Backend /dashboard falhou, usando cálculo local:", backendError);
+      dashboardStats = await getDashboardData();
+    }
+
+    if (!isMounted) return;
+
+    // defensivo: se o backend retornar algo inesperado, usamos 0 como fallback
+    setStats({
+      concluidas: Number(dashboardStats?.concluidas) || 0,
+      pendentes: Number(dashboardStats?.pendentes) || 0,
+      projetos: Number(dashboardStats?.projetos) || 0,
+    });
+
+    // 2) Relatório por semana (gera dados para gráfico de linha)
+    const result = await getRelatorioConcluidasPorSemana();
+
+    if (!result || typeof result !== "object") {
+      setLineData([]);
+      return;
+    }
+
+    const parsed = {};
+    Object.entries(result).forEach(([usuario, semanas]) => {
+      if (!semanas || typeof semanas !== "object") return;
+      Object.entries(semanas).forEach(([semana, atividades]) => {
+        if (!Array.isArray(atividades)) return;
+        if (!parsed[semana]) parsed[semana] = { semana, concluidas: 0, pendentes: 0 };
+
+        atividades.forEach((a) => {
+          if (!a) return;
+          const status = String(a.status || "").toLowerCase();
+          if (status.includes("finalizada") || status.includes("conclu")) {
+            parsed[semana].concluidas += 1;
+          } else if (status === "pendente") {
+            parsed[semana].pendentes += 1;
+          }
         });
+      });
+    });
 
-        // 2) Relatório por semana (gera dados para gráfico de linha)
-        const result = await getRelatorioConcluidasPorSemana();
+    const sorted = Object.values(parsed).sort((a, b) => {
+      const parseStart = (intervalStr) => {
+        if (!intervalStr) return new Date(0);
+        const [start] = String(intervalStr).split(" - ");
+        const [d, m] = start.split("/").map(Number);
+        const year = new Date().getFullYear();
+        return new Date(year, (m || 1) - 1, d || 1);
+      };
+      return parseStart(a.semana) - parseStart(b.semana);
+    });
 
-        // Se resultado for nulo/errado, preserva vazio
-        if (!result || typeof result !== "object") {
-          setLineData([]);
-          return;
-        }
+    if (isMounted) setLineData(sorted);
+  } catch (err) {
+    console.error("Erro geral no Dashboard:", err);
+    if (isMounted) setErrorMsg("Erro ao carregar dados. Verifique o servidor.");
+  } finally {
+    if (isMounted) setLoading(false);
+  }
+};
 
-        const parsed = {};
-
-        // result é um objeto: { "UsuárioA": { "21/08 - 27/08": [atividades], ... }, "Não atribuído": {...} }
-        Object.entries(result).forEach(([usuario, semanas]) => {
-          if (!semanas || typeof semanas !== "object") return;
-          Object.entries(semanas).forEach(([semana, atividades]) => {
-            if (!Array.isArray(atividades)) return;
-            if (!parsed[semana]) parsed[semana] = { semana, concluidas: 0, pendentes: 0 };
-
-            atividades.forEach((a) => {
-              if (!a) return;
-              const status = String(a.status || "").toLowerCase();
-              if (status === "finalizada" || status === "concluida" || status === "concluído") {
-                parsed[semana].concluidas += 1;
-              } else if (status === "pendente") {
-                parsed[semana].pendentes += 1;
-              }
-              // outros status são ignorados aqui (apenas contamos concluidas/pendentes)
-            });
-          });
-        });
-
-        // transformar em array e ordenar por data da semana (usa o dia inicial)
-        const sorted = Object.values(parsed).sort((a, b) => {
-          const parseStart = (intervalStr) => {
-            if (!intervalStr) return new Date(0);
-            const [start] = String(intervalStr).split(" - ");
-            const [d, m] = start.split("/").map(Number);
-            const year = new Date().getFullYear(); // toma o ano atual
-            return new Date(year, (m || 1) - 1, d || 1);
-          };
-          return parseStart(a.semana) - parseStart(b.semana);
-        });
-
-        if (isMounted) setLineData(sorted);
-      } catch (err) {
-        console.error("Erro ao buscar dados do dashboard:", err);
-        // mostre mensagem legível para o usuário
-        if (isMounted) setErrorMsg("Erro ao carregar dados. Verifique o servidor (console).");
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
 
     fetchDashboard();
 
@@ -221,5 +224,7 @@ const MotionCard = ({ icon, color, title, value, onClick }) => {
     </motion.button>
   );
 };
+
+
 
 export default Dashboard;

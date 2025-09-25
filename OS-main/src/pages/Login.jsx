@@ -9,33 +9,29 @@ const Login = () => {
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
+  e.preventDefault();
+  setError("");
 
-    if (!username || !password) {
-      setError("Preencha todos os campos!");
-      return;
+  if (!username || !password) {
+    setError("Preencha todos os campos!");
+    return;
+  }
+
+  try {
+    const data = await login(username, password);
+    const user = data.user;
+
+    if (user.role?.toLowerCase() === "admin") {
+      navigate("/admin/dashboard");
+    } else {
+      navigate("/user/dashboard");
     }
 
-    try {
-      const data = await login(username, password);
+  } catch (err) {
+    setError(err.message || "Usuário ou senha inválidos!");
+  }
+};
 
-      if (data && data.token) {
-        const user = data.user;
-
-        // 🔹 Corrigido: checagem lowercase e rota certa
-        if (user.role?.toLowerCase() === "admin") {
-          navigate("/admin/dashboard");
-        } else {
-          navigate("/user/dashboard");
-        }
-      } else {
-        setError("Usuário ou senha inválidos!");
-      }
-    } catch (err) {
-      setError(err.message || "Erro ao logar!");
-    }
-  };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-900">

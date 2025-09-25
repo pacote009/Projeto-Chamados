@@ -320,5 +320,18 @@ export const getRelatorioFixadasPorUsuario = async () => {
   return fixadas;
 };
 
+/**
+ * Buscar dados do dashboard do backend
+ */
+export const getDashboard = async () => {
+  try {
+    const response = await api.get("/dashboard");
+    return response.data;
+  } catch (error) {
+    console.error("Erro ao buscar dashboard:", error);
+    throw error;
+  }
+};
+
 
 export default api;
