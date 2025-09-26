@@ -4,9 +4,27 @@ import { authMiddleware } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-// Listar (público)
+// Listar com filtros
 router.get('/', async (req, res) => {
-  const list = await prisma.atividade.findMany({ include: { assignedTo: true } });
+  const { status, order = "desc", search = "" } = req.query;
+
+  const where = {};
+  if (status) {
+    where.status = status;
+  }
+  if (search) {
+    where.OR = [
+      { title: { contains: search, mode: "insensitive" } },
+      { description: { contains: search, mode: "insensitive" } },
+    ];
+  }
+
+  const list = await prisma.atividade.findMany({
+    where,
+    include: { assignedTo: true },
+    orderBy: { createdAt: order.toLowerCase() === "asc" ? "asc" : "desc" },
+  });
+
   const mapped = list.map(a => ({
     id: a.id,
     title: a.title,
@@ -15,8 +33,10 @@ router.get('/', async (req, res) => {
     createdAt: a.createdAt,
     completedAt: a.completedAt,
     comentarios: a.comentarios || [],
-    assignedTo: a.assignedTo ? a.assignedTo.username : null
+    assignedTo: a.assignedTo ? a.assignedTo.username : null,
+    concluidoPor: a.concluidoPor || null
   }));
+
   res.json(mapped);
 });
 
@@ -63,6 +83,9 @@ router.patch('/:id', async (req, res) => {
   }
   if (data.status && data.status.toLowerCase() === 'finalizada') {
     data.completedAt = new Date();
+    if (req.body.concluidoPor) {
+      data.concluidoPor = req.body.concluidoPor;
+    }
   }
   const updated = await prisma.atividade.update({ where: { id }, data });
   const full = await prisma.atividade.findUnique({ where: { id }, include: { assignedTo: true }});

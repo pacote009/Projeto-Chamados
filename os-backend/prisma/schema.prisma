@@ -34,10 +34,12 @@ model Atividade {
   status      String    @default("pendente")
   createdAt   DateTime  @default(now())
   completedAt DateTime?
-  comentarios Json @default(dbgenerated("'[]'"))
-  assignedTo   User? @relation("UserAssigned", fields: [assignedToId], references: [id])
+  comentarios Json      @default(dbgenerated("'[]'"))
+  assignedTo   User?    @relation("UserAssigned", fields: [assignedToId], references: [id])
   assignedToId Int?
+  concluidoPor String?  // <<< novo campo
 }
+
 
 model Projeto {
   id         Int      @id @default(autoincrement())
