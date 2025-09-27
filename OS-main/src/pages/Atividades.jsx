@@ -3,9 +3,11 @@ import AtividadeCard from "../components/AtividadeCard";
 import { addAtividade, getAtividades } from "../services/api";
 import { FaPlus, FaFilter } from "react-icons/fa";
 import { getCurrentUser } from "../auth";
+import ModalFixar from "../components/ModalFixar";
 import { motion } from "framer-motion";
 
 const Atividades = () => {
+  const [modalFixarAtividade, setModalFixarAtividade] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [novaAtividade, setNovaAtividade] = useState({ title: "", description: "" });
   const [reload, setReload] = useState(false);
@@ -35,7 +37,7 @@ const Atividades = () => {
       await addAtividade(nova);
       setNovaAtividade({ title: "", description: "" });
       setShowForm(false);
-      setReload((prev) => !prev); // recarrega listas
+      setReload((prev) => !prev);
     } catch (error) {
       console.error("Erro ao registrar atividade:", error);
       alert("Erro ao registrar atividade!");
@@ -55,6 +57,15 @@ const Atividades = () => {
           <FaPlus />
           Nova Atividade
         </motion.button>
+
+        {/* Modal Fixar */}
+        {modalFixarAtividade && (
+          <ModalFixar
+            atividade={modalFixarAtividade}
+            onClose={() => setModalFixarAtividade(null)}
+            onUpdate={() => setReload((prev) => !prev)}
+          />
+        )}
       </div>
 
       {/* Modal Nova Atividade */}
@@ -103,13 +114,13 @@ const Atividades = () => {
       )}
 
       {/* Seções */}
-      <Section key={`pendentes-${reload}`} title="Pendentes" status="pendente" reload={reload} />
-      <Section key={`finalizadas-${reload}`} title="Finalizadas" status="finalizada" reload={reload} />
+      <Section key={`pendentes-${reload}`} title="Pendentes" status="pendente" reload={reload} setModalFixarAtividade={setModalFixarAtividade} />
+      <Section key={`finalizadas-${reload}`} title="Finalizadas" status="finalizada" reload={reload} setModalFixarAtividade={setModalFixarAtividade} />
     </div>
   );
 };
 
-const Section = ({ title, status, reload }) => {
+const Section = ({ title, status, reload, setModalFixarAtividade }) => {
   const user = getCurrentUser();
   const [page, setPage] = useState(1);
   const [order, setOrder] = useState("desc");
@@ -184,7 +195,8 @@ const Section = ({ title, status, reload }) => {
               <AtividadeCard
                 key={atividade.id}
                 atividade={atividade}
-                onUpdate={fetchData} // recarrega instantaneamente
+                onUpdate={fetchData}
+                onFixar={() => setModalFixarAtividade(atividade)}
               />
             ))}
           </div>

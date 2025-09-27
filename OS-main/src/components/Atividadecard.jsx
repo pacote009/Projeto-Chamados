@@ -6,14 +6,12 @@ import {
   updateComentarioAtividadeTexto,
 } from "../services/api";
 import { getCurrentUser } from "../auth";
-import ModalFixar from "./ModalFixar";
 import ModalAlterarUsuario from "./ModalAlterarUsuario";
 import { FaTrash, FaEdit, FaCheck, FaUserEdit, FaThumbtack } from "react-icons/fa";
 import { motion } from "framer-motion";
 
-const AtividadeCard = ({ atividade, onUpdate }) => {
+const AtividadeCard = ({ atividade, onUpdate, onFixar }) => {
   const user = getCurrentUser() || { username: "Desconhecido", role: "user" };
-  const [showFixarModal, setShowFixarModal] = useState(false);
   const [showAlterarModal, setShowAlterarModal] = useState(false);
   const [comentario, setComentario] = useState("");
   const [editIndex, setEditIndex] = useState(null);
@@ -37,7 +35,7 @@ const AtividadeCard = ({ atividade, onUpdate }) => {
   const handleAddComentario = async () => {
     if (comentario.trim() === "") return;
     const novosComentarios = [
-      ...atividade.comentarios,
+      ...(atividade.comentarios || []),
       { autor: user.username, texto: comentario },
     ];
     await updateAtividade(atividade.id, { comentarios: novosComentarios });
@@ -94,14 +92,15 @@ const AtividadeCard = ({ atividade, onUpdate }) => {
           </button>
         )}
 
-        {user.role === "admin" && atividade.status === "pendente" && (
-          <button
-            onClick={() => setShowFixarModal(true)}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
-          >
-            <FaThumbtack /> Fixar
-          </button>
-        )}
+        {/* Botão Fixar — aparece apenas para admins */}
+        {user.role?.toLowerCase() === "admin" && atividade.status === "pendente" && (
+  <button
+    onClick={onFixar}
+    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition"
+  >
+    <FaThumbtack /> Fixar
+  </button>
+)}
 
         {user.role === "admin" && atividade.assignedTo && (
           <button
@@ -122,11 +121,7 @@ const AtividadeCard = ({ atividade, onUpdate }) => {
         )}
       </div>
 
-      {/* Modais */}
-      {showFixarModal && (
-        <ModalFixar atividade={atividade} onClose={() => setShowFixarModal(false)} onUpdate={onUpdate} />
-      )}
-
+      {/* Modal Alterar Usuário */}
       {showAlterarModal && (
         <ModalAlterarUsuario atividade={atividade} onClose={() => setShowAlterarModal(false)} onUpdate={onUpdate} />
       )}

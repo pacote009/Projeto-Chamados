@@ -104,24 +104,29 @@ router.post('/', async (req, res) => {
 });
 
 // Atualizar parcialmente (patch)
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', authMiddleware, async (req, res) => {
   const id = Number(req.params.id);
   const data = { ...req.body };
+
   if (data.assignedTo) {
     const user = await prisma.user.findUnique({ where: { username: data.assignedTo }});
-    data.assignedToId = user ? user.id : null;
+    if (!user) return res.status(404).json({ error: "Usuário não encontrado" });
+    data.assignedToId = user.id;
     delete data.assignedTo;
   }
+
   if (data.status && data.status.toLowerCase() === 'finalizada') {
     data.completedAt = new Date();
     if (req.body.concluidoPor) {
       data.concluidoPor = req.body.concluidoPor;
     }
   }
+
   const updated = await prisma.atividade.update({ where: { id }, data });
   const full = await prisma.atividade.findUnique({ where: { id }, include: { assignedTo: true }});
   res.json({ ...full, assignedTo: full.assignedTo ? full.assignedTo.username : null });
 });
+
 
 // Deletar
 router.delete('/:id', async (req, res) => {

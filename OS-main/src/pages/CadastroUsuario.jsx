@@ -1,3 +1,4 @@
+import api from "../services/api";
 import React, { useState } from "react";
 import { UserIcon, LockClosedIcon, IdentificationIcon } from "@heroicons/react/24/outline";
 
@@ -9,33 +10,47 @@ const CadastroUsuario = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    if (!nome.trim() || !login.trim() || !senha || !confirmarSenha) {
-      setError("Por favor, preencha todos os campos.");
-      return;
-    }
-    if (senha !== confirmarSenha) {
-      setError("As senhas não coincidem.");
-      return;
-    }
-    if (senha.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
-      return;
-    }
+  if (!nome.trim() || !login.trim() || !senha || !confirmarSenha) {
+    setError("Por favor, preencha todos os campos.");
+    return;
+  }
 
-    try {
+  if (senha !== confirmarSenha) {
+    setError("As senhas não coincidem.");
+    return;
+  }
+
+  if (senha.length < 6) {
+    setError("A senha deve ter pelo menos 6 caracteres.");
+    return;
+  }
+
+  try {
+    const response = await api.post("/users", {
+      name: nome,
+      username: login,
+      password: senha,
+      email: "" // ou pegar email de outro campo se quiser
+    });
+
+    if (response.status === 201) {
       setSuccess("Usuário cadastrado com sucesso!");
       setError("");
       setNome("");
       setLogin("");
       setSenha("");
       setConfirmarSenha("");
-    } catch (err) {
-      setError("Erro ao cadastrar usuário. Tente novamente.");
     }
-  };
+  } catch (err) {
+    console.error(err);
+    setError(err.response?.data?.error || "Erro ao cadastrar usuário. Tente novamente.");
+    setSuccess("");
+  }
+};
+
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gradient-to-tr from-indigo-900 via-gray-900 to-black px-4">
