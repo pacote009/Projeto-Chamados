@@ -39,7 +39,7 @@ const Dashboard = () => {
     setStats({
       concluidas: Number(dashboardStats?.concluidas) || 0,
       pendentes: Number(dashboardStats?.pendentes) || 0,
-      projetos: Number(dashboardStats?.projetos) || 0,
+      projetos: Number(dashboardStats?.totalProjetos) || 0,
     });
 
     // 2) Relatório por semana (gera dados para gráfico de linha)

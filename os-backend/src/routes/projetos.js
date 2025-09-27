@@ -18,7 +18,8 @@ router.get('/', async (req, res) => {
       comentarios: p.comentarios || [],
       likedBy: p.likedBy || [],
       autor: p.autor ? p.autor.username : (p.autorId || null),
-      createdAt: p.createdAt
+      createdAt: p.createdAt,
+      ativo: true
     }));
 
     res.json(mapped);
@@ -57,7 +58,9 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({
       ...full,
-      autor: full.autor ? full.autor.username : null
+      autor: full.autor ? full.autor.username : null,
+      ativo: true
+
     });
   } catch (err) {
     console.error("Erro ao criar projeto:", err);
@@ -83,7 +86,8 @@ router.patch('/:id', async (req, res) => {
 
     res.json({
       ...full,
-      autor: full.autor ? full.autor.username : null
+      autor: full.autor ? full.autor.username : null,
+      ativo: true
     });
   } catch (err) {
     console.error("Erro ao atualizar projeto:", err);

@@ -4,38 +4,64 @@ import { authMiddleware } from '../middlewares/auth.js';
 
 const router = express.Router();
 
-// Dashboard protegido
+// Dashboard protegido - retorna contagens processadas + listas opcionais
 router.get('/', authMiddleware, async (req, res) => {
   try {
-    const { role, id } = req.user;
+    const { role, id } = req.user; // id do user logado (de authMiddleware)
 
-    let atividades, projetos, users;
+    
+    // Filtros baseados em role
+    const whereAtividades = role !== 'ADMIN' ? { assignedToId: id } : {};
+    const whereProjetos = role !== 'ADMIN' ? { autorId: id } : {};
 
+    // Busca paralela (eficiente)
+    const [atividades, projetos, users] = await Promise.all([
+      prisma.atividade.findMany({ 
+        where: whereAtividades, 
+        include: { assignedTo: true } 
+      }),
+      prisma.projeto.findMany({ 
+        where: whereProjetos, 
+        include: { autor: true } 
+      }),
+      role === 'ADMIN' ? prisma.user.findMany({ 
+        select: { id: true, username: true, role: true } 
+      }) : [] // Admin vê users; user não
+    ]);
+
+    // Contagens de atividades (case-insensitive para status)
+    const concluidas = atividades.filter(a => 
+      ["finalizada", "concluida", "concluído", "concluída"].includes(
+        String(a.status).toLowerCase().trim()
+      )
+    ).length;
+    const pendentes = atividades.filter(a => 
+      String(a.status).toLowerCase().trim() === "pendente"
+    ).length;
+
+    // Projetos totais
+    const totalProjetos = projetos.length;
+
+    // Por usuário (só para admin, para gráficos futuros)
+    const projetosPorUsuario = {};
+    const atividadesPorUsuario = {};
     if (role === 'ADMIN') {
-      // Admin vê tudo
-      atividades = await prisma.atividade.findMany({
-        include: { assignedTo: true }
+      projetos.forEach(p => {
+        const autor = p.autor?.username || "Desconhecido";
+        projetosPorUsuario[autor] = (projetosPorUsuario[autor] || 0) + 1;
       });
-      projetos = await prisma.projeto.findMany({
-        include: { autor: true }
+      atividades.forEach(a => {
+        const user = a.assignedTo?.username || "Não atribuído";
+        atividadesPorUsuario[user] = (atividadesPorUsuario[user] || 0) + 1;
       });
-      users = await prisma.user.findMany({
-        select: { id: true, name: true, username: true, email: true, role: true }
+      // Preenche zeros para todos users
+      users.forEach(u => {
+        if (!projetosPorUsuario[u.username]) projetosPorUsuario[u.username] = 0;
+        if (!atividadesPorUsuario[u.username]) atividadesPorUsuario[u.username] = 0;
       });
-    } else {
-      // User comum → só os próprios
-      atividades = await prisma.atividade.findMany({
-        where: { assignedToId: id },
-        include: { assignedTo: true }
-      });
-      projetos = await prisma.projeto.findMany({
-        where: { autorId: id },
-        include: { autor: true }
-      });
-      users = []; // usuário comum não vê lista de usuários
     }
 
-    // Ajustar retorno (sem campos sensíveis)
+    // Mapeamento das listas (sem campos sensíveis)
     const mappedAtividades = atividades.map(a => ({
       id: a.id,
       title: a.title,
@@ -44,27 +70,35 @@ router.get('/', authMiddleware, async (req, res) => {
       createdAt: a.createdAt,
       completedAt: a.completedAt,
       comentarios: a.comentarios || [],
-      assignedTo: a.assignedTo ? a.assignedTo.username : null
+      assignedTo: a.assignedTo ? a.assignedTo.username : null,
+      concluidoPor: a.concluidoPor || null
     }));
 
     const mappedProjetos = projetos.map(p => ({
       id: p.id,
       titulo: p.titulo,
       descricao: p.descricao,
-      likes: p.likes,
+      likes: p.likes || 0,
       comentarios: p.comentarios || [],
+      likedBy: p.likedBy || [],
       autor: p.autor ? p.autor.username : null,
       createdAt: p.createdAt
     }));
 
+    // Resposta compatível com frontend
     res.json({
-      atividades: mappedAtividades,
-      projetos: mappedProjetos,
-      users
+      concluidas,  // ✅ Número pronto!
+      pendentes,   // ✅ Número pronto!
+      totalProjetos,  // ✅ Número pronto!
+      projetosPorUsuario,  // Para gráficos
+      atividadesPorUsuario,  // Para gráficos
+      atividades: mappedAtividades,  // Lista opcional
+      projetos: mappedProjetos,  // Lista opcional
+      users  // Lista opcional
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Erro no dashboard' });
+    console.error('Erro no dashboard:', err);
+    res.status(500).json({ error: 'Erro no dashboard', details: err.message });
   }
 });
 
