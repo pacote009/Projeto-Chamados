@@ -18,6 +18,11 @@ const Atividades = () => {
       return;
     }
 
+    if (!novaAtividade.title.trim() || !novaAtividade.description.trim()) {
+      alert("Preencha título e descrição!");
+      return;
+    }
+
     const nova = {
       title: novaAtividade.title,
       description: novaAtividade.description,
@@ -26,10 +31,15 @@ const Atividades = () => {
       autor: user.username,
     };
 
-    await addAtividade(nova);
-    setNovaAtividade({ title: "", description: "" });
-    setShowForm(false);
-    setReload((prev) => !prev);
+    try {
+      await addAtividade(nova);
+      setNovaAtividade({ title: "", description: "" });
+      setShowForm(false);
+      setReload((prev) => !prev); // recarrega listas
+    } catch (error) {
+      console.error("Erro ao registrar atividade:", error);
+      alert("Erro ao registrar atividade!");
+    }
   };
 
   return (
@@ -71,6 +81,7 @@ const Atividades = () => {
               value={novaAtividade.description}
               onChange={(e) => setNovaAtividade({ ...novaAtividade, description: e.target.value })}
               className="w-full border rounded-lg p-3 text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              required
             />
             <div className="flex justify-end gap-3 mt-4">
               <button
@@ -92,20 +103,19 @@ const Atividades = () => {
       )}
 
       {/* Seções */}
-      <Section key={`pendentes-${reload}`} title="Pendentes" status="pendente" />
-      <Section key={`finalizadas-${reload}`} title="Finalizadas" status="finalizada" />
+      <Section key={`pendentes-${reload}`} title="Pendentes" status="pendente" reload={reload} />
+      <Section key={`finalizadas-${reload}`} title="Finalizadas" status="finalizada" reload={reload} />
     </div>
   );
 };
 
-const Section = ({ title, status }) => {
+const Section = ({ title, status, reload }) => {
   const user = getCurrentUser();
   const [page, setPage] = useState(1);
   const [order, setOrder] = useState("desc");
   const [search, setSearch] = useState("");
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
-  const [reload, setReload] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -174,7 +184,7 @@ const Section = ({ title, status }) => {
               <AtividadeCard
                 key={atividade.id}
                 atividade={atividade}
-                onUpdate={() => setReload((prev) => !prev)}
+                onUpdate={fetchData} // recarrega instantaneamente
               />
             ))}
           </div>

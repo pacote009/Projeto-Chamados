@@ -6,39 +6,70 @@ const router = express.Router();
 
 // Listar com filtros
 router.get('/', async (req, res) => {
-  const { status, order = "desc", search = "" } = req.query;
+  try {
+    const { status, order = "desc", search = "" } = req.query;
 
-  const where = {};
-  if (status) {
-    where.status = status;
+    // ✅ LOG PARA DEBUG: Ver se search chega
+    console.log('Parâmetros recebidos na rota /atividades:', { status, order, search });
+
+    const where = {};
+    if (status) {
+      where.status = status;
+    }
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },  // ✅ Temporário: Removido mode: "insensitive" para testar (SQLite pode falhar)
+        { description: { contains: search } },
+      ];
+      // ✅ LOG PARA DEBUG: Ver o where.OR aplicado
+      console.log('Filtro OR aplicado para search:', where.OR);
+    }
+
+    let sortOrder = "desc";
+    const orderLower = order.toString().toLowerCase();
+
+    if (orderLower === "asc" || orderLower === "mais antigas") {
+      sortOrder = "asc";
+    } else if (orderLower === "desc" || orderLower === "mais recentes") {
+      sortOrder = "desc";
+    }
+
+    // ✅ Try-catch na query para capturar erro do Prisma
+    let list;
+    try {
+      list = await prisma.atividade.findMany({
+        where,
+        include: { assignedTo: true },
+        orderBy: [{ createdAt: sortOrder }],
+      });
+    } catch (prismaError) {
+      console.error('Erro na query Prisma (provavelmente no where.OR):', prismaError);  // ✅ Log erro exato
+      return res.status(500).json({ error: 'Erro na consulta do banco', details: prismaError.message });
+    }
+
+    // ✅ LOG PARA DEBUG: Ver quantos itens retornou após filtro
+    console.log(`Itens encontrados após filtro (search: "${search}", status: "${status}"):`, list.length);
+
+    const mapped = list.map(a => ({
+      id: a.id,
+      title: a.title,
+      description: a.description,
+      status: a.status,
+      createdAt: a.createdAt,
+      completedAt: a.completedAt,
+      comentarios: a.comentarios || [],
+      assignedTo: a.assignedTo ? a.assignedTo.username : null,
+      concluidoPor: a.concluidoPor || null
+    }));
+
+    res.json(mapped);
+  } catch (error) {
+    console.error("Erro ao carregar atividades:", error);  // ✅ Log geral
+    res.status(500).json({ error: "Erro interno no servidor", details: error.message });
   }
-  if (search) {
-    where.OR = [
-      { title: { contains: search, mode: "insensitive" } },
-      { description: { contains: search, mode: "insensitive" } },
-    ];
-  }
-
-  const list = await prisma.atividade.findMany({
-    where,
-    include: { assignedTo: true },
-    orderBy: { createdAt: order.toLowerCase() === "asc" ? "asc" : "desc" },
-  });
-
-  const mapped = list.map(a => ({
-    id: a.id,
-    title: a.title,
-    description: a.description,
-    status: a.status,
-    createdAt: a.createdAt,
-    completedAt: a.completedAt,
-    comentarios: a.comentarios || [],
-    assignedTo: a.assignedTo ? a.assignedTo.username : null,
-    concluidoPor: a.concluidoPor || null
-  }));
-
-  res.json(mapped);
 });
+
+
 
 // Buscar 1
 router.get('/:id', async (req, res) => {

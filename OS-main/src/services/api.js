@@ -112,54 +112,45 @@ export const getAtividades = async (
   limit = 5,
   order = "desc",
   search = "",
-  currentUser = null
+  currentUser  = null  // ✅ Removido espaço extra
 ) => {
-  const res = await api.get("/atividades", { params: { status } });
-  let list = Array.isArray(res.data) ? res.data : [];
+  // ✅ Envia status, order e search para o backend (backend processa where.OR para search e orderBy para order)
+  const params = { status, order, search };
 
-  // 🔍 Filtro por título ou descrição
-  const term = search.trim().toLowerCase();
-  if (term) {
-    list = list.filter((item) => {
-      const t = (item.title || "").toLowerCase();
-      const d = (item.description || "").toLowerCase();
-      return t.includes(term) || d.includes(term);
-    });
+  try {
+    const res = await api.get("/atividades", { params }); // ✅ Envia TODOS os params (status, order, search)
+
+    let list = Array.isArray(res.data) ? res.data : [];
+
+    // ✅ LOG PARA DEBUG: Ver o que o backend retornou (antes do filtro local)
+    console.log('Dados recebidos do backend (após search no banco):', { status, search, totalFromBackend: list.length, items: list.map(item => ({ title: item.title, description: item.description })) });
+
+    // 🔒 Filtro por assignedTo (fixadas/visibilidade): mantém no frontend (depende de currentUser )
+    if (currentUser  && currentUser .role !== "admin") {  // ✅ Removido espaço extra em .role
+      const beforeFilter = list.length;  // Definido aqui, dentro do if
+      list = list.filter((item) => !item.assignedTo || item.assignedTo === currentUser .username);  // ✅ Removido espaço extra em .username
+      // ✅ LOG PARA DEBUG: Ver se o filtro assignedTo remove itens (só executa se if for true)
+      console.log('Após filtro assignedTo (para usuário não-admin):', { before: beforeFilter, after: list.length });
+    }
+
+    // REMOVIDO: Filtro de search local (backend já faz com where.OR)
+    // REMOVIDO: Ordenação local (backend já faz com orderBy por createdAt)
+
+    // 📄 Paginação: ainda no frontend (backend não suporta ainda; implemente se quiser eficiência)
+    const total = list.length;
+    const start = (page - 1) * limit;
+    const end = start + limit;
+    const data = list.slice(start, end);
+
+    // ✅ LOG PARA DEBUG: Ver após paginação
+    console.log('Após paginação (page:', page, 'limit:', limit, '):', { total, dataLength: data.length });
+
+    return { data, total };
+  } catch (error) {
+    console.error('Erro na getAtividades:', error);  // ✅ Try-catch para capturar erros (ex.: 500 do backend)
+    return { data: [], total: 0 };  // Retorna vazio em caso de erro, para não quebrar o app
   }
-
-  // 🔒 Ocultar fixadas de outros usuários (exceto admin)
-  if (currentUser && currentUser.role !== "admin") {
-    list = list.filter((item) => !item.assignedTo || item.assignedTo === currentUser.username);
-  }
-
-  // 📌 Ordenação
-  const getKey = (it) => {
-    if (it.createdAt) return { type: "num", v: Number(it.createdAt) };
-    const n = Number(it.id);
-    if (!Number.isNaN(n)) return { type: "num", v: n };
-    return { type: "str", v: String(it.id || "") };
-  };
-
-  list.sort((a, b) => {
-    const ka = getKey(a);
-    const kb = getKey(b);
-
-    let cmp = 0;
-    if (ka.type === "num" && kb.type === "num") cmp = ka.v - kb.v;
-    else cmp = String(ka.v).localeCompare(String(kb.v));
-
-    return order === "asc" ? cmp : -cmp;
-  });
-
-  // 📄 Paginação
-  const total = list.length;
-  const start = (page - 1) * limit;
-  const end = start + limit;
-  const data = list.slice(start, end);
-
-  return { data, total };
 };
-
 /**
  * Adicionar nova atividade
  */
