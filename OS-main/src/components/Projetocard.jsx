@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaRegThumbsUp, FaCommentAlt, FaTrash } from "react-icons/fa";
+import { FaRegThumbsUp, FaCommentAlt, FaTrash, FaEdit, FaSave, FaTimes } from "react-icons/fa";
 import api from "../services/api";
 import { getCurrentUser } from "../auth";
 import { motion } from "framer-motion";
@@ -7,7 +7,19 @@ import { motion } from "framer-motion";
 const ProjetoCard = ({ projeto, onUpdate }) => {
   const [showComments, setShowComments] = useState(false);
   const [newComment, setNewComment] = useState("");
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [editedComment, setEditedComment] = useState("");
   const user = getCurrentUser();
+
+  // Função auxiliar — garante compatibilidade com strings antigas
+  const normalizeComments = () =>
+    projeto.comentarios.map((c, index) => {
+      if (typeof c === "string") {
+        const [autor, ...rest] = c.split(": ");
+        return { id: index, autor, texto: rest.join(": "), data: null };
+      }
+      return c;
+    });
 
   const handleLike = async () => {
     if (projeto.likedBy?.includes(user.username)) {
@@ -28,14 +40,41 @@ const ProjetoCard = ({ projeto, onUpdate }) => {
 
   const handleAddComment = async () => {
     if (!newComment.trim()) return;
+    const comentarios = normalizeComments();
+    const novoComentario = {
+      id: Date.now(),
+      autor: user.username,
+      texto: newComment.trim(),
+      data: new Date().toISOString(),
+    };
+
     try {
       await api.patch(`/projetos/${projeto.id}`, {
-        comentarios: [...projeto.comentarios, `${user.username}: ${newComment}`],
+        comentarios: [...comentarios, novoComentario],
       });
       setNewComment("");
       onUpdate();
     } catch (err) {
       console.error("Erro ao comentar:", err);
+    }
+  };
+
+  const handleEditComment = (index, textoAtual) => {
+    setEditingIndex(index);
+    setEditedComment(textoAtual);
+  };
+
+  const handleSaveEdit = async (index) => {
+    const comentarios = normalizeComments();
+    comentarios[index].texto = editedComment;
+
+    try {
+      await api.patch(`/projetos/${projeto.id}`, { comentarios });
+      setEditingIndex(null);
+      setEditedComment("");
+      onUpdate();
+    } catch (err) {
+      console.error("Erro ao editar comentário:", err);
     }
   };
 
@@ -48,6 +87,8 @@ const ProjetoCard = ({ projeto, onUpdate }) => {
       console.error("Erro ao excluir projeto:", err);
     }
   };
+
+  const comentarios = normalizeComments();
 
   return (
     <motion.div
@@ -72,7 +113,7 @@ const ProjetoCard = ({ projeto, onUpdate }) => {
           onClick={() => setShowComments(!showComments)}
           className="flex items-center gap-2 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
         >
-          <FaCommentAlt /> {projeto.comentarios.length}
+          <FaCommentAlt /> {comentarios.length}
         </button>
 
         {user?.username === projeto.autor && (
@@ -93,15 +134,50 @@ const ProjetoCard = ({ projeto, onUpdate }) => {
           className="mt-4 border-t border-gray-300 dark:border-gray-700 pt-3"
         >
           <div className="space-y-2">
-            {projeto.comentarios.map((c, i) => (
-              <p
-                key={i}
-                className="text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg"
+            {comentarios.map((c, i) => (
+              <div
+                key={c.id}
+                className="text-sm text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 p-2 rounded-lg flex justify-between items-center"
               >
-                {c}
-              </p>
+                {editingIndex === i ? (
+                  <>
+                    <input
+                      value={editedComment}
+                      onChange={(e) => setEditedComment(e.target.value)}
+                      className="flex-1 border rounded-lg p-1 text-gray-800 dark:text-gray-100 bg-gray-50 dark:bg-gray-600"
+                    />
+                    <button
+                      onClick={() => handleSaveEdit(i)}
+                      className="text-green-600 hover:text-green-800 ml-2"
+                    >
+                      <FaSave />
+                    </button>
+                    <button
+                      onClick={() => setEditingIndex(null)}
+                      className="text-red-500 hover:text-red-700 ml-1"
+                    >
+                      <FaTimes />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      <strong>{c.autor}</strong>: {c.texto}
+                    </span>
+                    {c.autor === user.username && (
+                      <button
+                        onClick={() => handleEditComment(i, c.texto)}
+                        className="text-yellow-600 hover:text-yellow-800 ml-2"
+                      >
+                        <FaEdit />
+                      </button>
+                    )}
+                  </>
+                )}
+              </div>
             ))}
           </div>
+
           <div className="flex gap-3 mt-3">
             <input
               type="text"
